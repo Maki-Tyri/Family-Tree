@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html lang="en" >
 <head>
   <meta charset="UTF-8" />
@@ -79,7 +79,8 @@
     input[type="text"].name-input {
       width: 140px;
     }
-    input[type="date"].birthday-input {
+    input[type="date"].birthday-input,
+    input[type="date"].died-input {
       width: 130px;
     }
     .node-buttons {
@@ -171,12 +172,65 @@
       cursor: pointer;
       color: white;
     }
+
+    /* --- Improved Login Page Styles --- */
+    #login-container {
+      max-width: 400px;
+      padding: 30px 40px;
+      box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
+      border-radius: 12px;
+      background: white;
+    }
+    #login-container h2 {
+      text-align: center;
+      margin-bottom: 25px;
+      font-weight: 700;
+      color: #2563eb;
+    }
+    #login-container input {
+      width: 100%;
+      margin-bottom: 15px;
+      font-size: 1.1rem;
+      padding: 12px;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      transition: border-color 0.3s;
+    }
+    #login-container input:focus {
+      border-color: #2563eb;
+      outline: none;
+    }
+    #login-btn {
+      font-size: 1.1rem;
+      padding: 12px;
+      border-radius: 8px;
+    }
+
+    /* Horizontal scrolling container for family tree */
+    #family-trees-container {
+      overflow-x: auto;
+      overflow-y: auto;
+      white-space: nowrap;
+      padding-bottom: 15px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #fefefe;
+      max-height: 600px;
+    }
+    #family-trees-container > div {
+      display: inline-block;
+      vertical-align: top;
+      white-space: normal;
+      min-width: 400px;
+    }
   </style>
 
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js"></script> <!-- For OAuth -->
+
 </head>
 <body>
 
@@ -185,498 +239,545 @@
   <input id="email" type="email" placeholder="Email" autocomplete="username" />
   <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
   <button id="login-btn">Login</button>
-  <p id="login-error" style="color: red;"></p>
 </div>
 
 <div id="app-container" style="display:none;">
-  <h2>Family Tree</h2>
-
   <div id="birthday-notifications"></div>
+  <button id="logout-btn">Logout</button>
 
-  <!-- ADD ROOT MEMBER FORM -->
   <div id="add-root-container">
-    <h3>Add Root Member</h3>
+    <h3>Add Root Person</h3>
     <form id="add-root-form">
       <input type="text" id="root-name" placeholder="Name" required />
       <input type="date" id="root-birthday" required />
-      <button type="submit">+ Add Root Member</button>
+      <input type="date" id="root-died" placeholder="Date Died (optional)" />
+      <button type="submit">Add Root Person</button>
     </form>
   </div>
 
-  <div id="tree-root"></div>
-
-  <button id="logout-btn" style="margin-top: 20px; background:#ef4444;">Logout</button>
+  <div id="family-trees-container"></div>
 </div>
 
 <script>
+  // Firebase config - replace with your own config here
   const firebaseConfig = {
     apiKey: "AIzaSyCy9CKJ6CELheBhw7Gs0BgsE1E0FsoYdgU",
     authDomain: "project-955237504610034331.firebaseapp.com",
     databaseURL: "https://project-955237504610034331-default-rtdb.firebaseio.com",
     projectId: "project-955237504610034331",
-    storageBucket: "project-955237504610034331.firebasestorage.app",
-    messagingSenderId: "76212939677",
-    appId: "1:76212939677:web:cc36cc1cadfd106b6e5d74",
-    measurementId: "G-RCJ4P82PVM"
+    storageBucket: "project-955237504610034331.appspot.com",
+    messagingSenderId: "955237504610034331",
+    appId: "1:955237504610034331:web:929cfe1b2a298c6904ae91"
   };
 
   firebase.initializeApp(firebaseConfig);
   const auth = firebase.auth();
-  const db = firebase.database();
+  const database = firebase.database();
 
+  // --- UI Elements ---
   const loginContainer = document.getElementById('login-container');
   const appContainer = document.getElementById('app-container');
-  const loginError = document.getElementById('login-error');
   const emailInput = document.getElementById('email');
   const passwordInput = document.getElementById('password');
   const loginBtn = document.getElementById('login-btn');
   const logoutBtn = document.getElementById('logout-btn');
   const birthdayNotifications = document.getElementById('birthday-notifications');
-  const treeRoot = document.getElementById('tree-root');
+  const familyTreesContainer = document.getElementById('family-trees-container');
 
-  const addRootForm = document.getElementById('add-root-form');
-  const rootNameInput = document.getElementById('root-name');
-  const rootBirthdayInput = document.getElementById('root-birthday');
-
+  // --- Authentication ---
   loginBtn.addEventListener('click', () => {
     const email = emailInput.value.trim();
     const password = passwordInput.value.trim();
-    loginError.textContent = '';
     if (!email || !password) {
-      loginError.textContent = 'Please enter email and password.';
+      alert('Please enter email and password.');
       return;
     }
     auth.signInWithEmailAndPassword(email, password)
-      .then(() => {
-        loginContainer.style.display = 'none';
-        appContainer.style.display = 'block';
-        loadFamilyTree();
-      })
-      .catch(err => {
-        loginError.textContent = err.message;
-      });
+      .catch(err => alert(err.message));
   });
 
   logoutBtn.addEventListener('click', () => {
-    auth.signOut().then(() => {
-      appContainer.style.display = 'none';
-      loginContainer.style.display = 'block';
-      clearTree();
-      emailInput.value = '';
-      passwordInput.value = '';
-      birthdayNotifications.textContent = '';
-    });
+    auth.signOut();
   });
 
   auth.onAuthStateChanged(user => {
     if (user) {
       loginContainer.style.display = 'none';
       appContainer.style.display = 'block';
-      loadFamilyTree();
+      loadFamilyTrees();
     } else {
       loginContainer.style.display = 'block';
       appContainer.style.display = 'none';
-      clearTree();
       birthdayNotifications.textContent = '';
+      familyTreesContainer.innerHTML = '';
     }
   });
 
+  // --- Family Trees Data ---
+  let familyTrees = {};
+
+  // --- Load Family Trees ---
+  function loadFamilyTrees() {
+    const userId = auth.currentUser.uid;
+    const userTreesRef = database.ref(`familyTrees/${userId}`);
+    userTreesRef.off();
+
+    userTreesRef.on('value', snapshot => {
+      familyTrees = snapshot.val() || {};
+      renderFamilyTrees();
+      showTodayBirthdays();
+    });
+  }
+
+  // --- Save Family Trees ---
+  function saveFamilyTrees() {
+    const userId = auth.currentUser.uid;
+    database.ref(`familyTrees/${userId}`).set(familyTrees);
+  }
+
+  // --- Add Root Person ---
+  const addRootForm = document.getElementById('add-root-form');
   addRootForm.addEventListener('submit', e => {
     e.preventDefault();
-    const name = rootNameInput.value.trim();
-    const birthday = rootBirthdayInput.value;
+    const name = document.getElementById('root-name').value.trim();
+    const birthday = document.getElementById('root-birthday').value;
+    const diedDate = document.getElementById('root-died').value || '';
     if (!name || !birthday) {
-      alert('Please enter name and birthday.');
+      alert('Please fill in the name and birthday.');
       return;
     }
-    const newRef = db.ref('familyTree').push();
-    newRef.set({ name, birthday, parentId: null })
-      .then(() => {
-        rootNameInput.value = '';
-        rootBirthdayInput.value = '';
-        loadFamilyTree();
-        checkBirthdaysToday();
-      })
-      .catch(err => alert('Error adding root member: ' + err.message));
+    // Add new root person as a new tree
+    const treeId = Date.now().toString();
+    familyTrees[treeId] = {
+      id: treeId,
+      name,
+      birthday,
+      died: diedDate ? true : false,
+      diedDate: diedDate || '',
+      children: {},
+      spouses: {}
+    };
+    saveFamilyTrees();
+    addRootForm.reset();
   });
 
-  function clearTree() {
-    treeRoot.innerHTML = '';
-  }
+  // --- Show Today's Birthdays ---
+  function showTodayBirthdays() {
+    birthdayNotifications.textContent = '';
+    const today = new Date();
+    const monthDay = today.toISOString().slice(5,10);
 
-  let nodesById = {};
+    let notifications = [];
 
-  function loadFamilyTree() {
-    db.ref('familyTree').once('value').then(snapshot => {
-      nodesById = snapshot.val() || {};
-      renderTree();
-      checkBirthdaysToday();
-    });
-  }
-
-  function renderTree() {
-    clearTree();
-    // find root nodes (parentId == null)
-    const rootIds = Object.keys(nodesById).filter(id => !nodesById[id].parentId);
-    rootIds.forEach(rootId => {
-      treeRoot.appendChild(createTreeNode(rootId));
-    });
-  }
-
-  function createTreeNode(nodeId) {
-    const nodeData = nodesById[nodeId];
-    if (!nodeData) return document.createElement('div');
-
-    // Container
-    const container = document.createElement('div');
-    container.classList.add('tree-node');
-
-    // Header (arrow + name + birthday + buttons)
-    const header = document.createElement('div');
-    header.classList.add('node-header');
-
-    // Arrow for children
-    const arrow = document.createElement('span');
-    arrow.textContent = '▶';
-    arrow.classList.add('arrow', 'collapsed');
-    arrow.style.userSelect = 'none';
-    arrow.title = 'Show/Hide children';
-
-    // Children container
-    const childrenContainer = document.createElement('div');
-    childrenContainer.style.marginLeft = '20px';
-    childrenContainer.style.display = 'none'; // collapsed by default
-
-    arrow.addEventListener('click', () => {
-      if (childrenContainer.style.display === 'none') {
-        childrenContainer.style.display = 'block';
-        arrow.classList.remove('collapsed');
-      } else {
-        childrenContainer.style.display = 'none';
-        arrow.classList.add('collapsed');
+    for (const treeId in familyTrees) {
+      const tree = familyTrees[treeId];
+      // Check root person
+      if (tree.birthday && tree.birthday.slice(5,10) === monthDay) {
+        notifications.push(`${tree.name} (Root) has birthday today!`);
       }
-    });
+      if (tree.died && tree.diedDate && tree.diedDate.slice(5,10) === monthDay) {
+        notifications.push(`Remembering ${tree.name} (Root), who passed away today.`);
+      }
+      // Check children recursively
+      function checkDescendants(node) {
+        for (const childId in node.children) {
+          const child = node.children[childId];
+          if (child.birthday && child.birthday.slice(5,10) === monthDay) {
+            notifications.push(`${child.name} has birthday today!`);
+          }
+          if (child.died && child.diedDate && child.diedDate.slice(5,10) === monthDay) {
+            notifications.push(`Remembering ${child.name}, who passed away today.`);
+          }
+          checkDescendants(child);
+        }
+        for (const spouseId in node.spouses) {
+          const spouse = node.spouses[spouseId];
+          if (spouse.birthday && spouse.birthday.slice(5,10) === monthDay) {
+            notifications.push(`${spouse.name} (spouse) has birthday today!`);
+          }
+          if (spouse.died && spouse.diedDate && spouse.diedDate.slice(5,10) === monthDay) {
+            notifications.push(`Remembering ${spouse.name} (spouse), who passed away today.`);
+          }
+        }
+      }
+      checkDescendants(tree);
+    }
+
+    if (notifications.length > 0) {
+      birthdayNotifications.innerHTML = notifications.join('<br>');
+    }
+  }
+
+  // --- Render Family Trees ---
+  function renderFamilyTrees() {
+    familyTreesContainer.innerHTML = '';
+    for (const treeId in familyTrees) {
+      const tree = familyTrees[treeId];
+      const treeDiv = document.createElement('div');
+      treeDiv.style.marginRight = '40px';
+      renderNode(tree, treeDiv, treeId, null);
+      familyTreesContainer.appendChild(treeDiv);
+    }
+  }
+
+  // --- Render Node ---
+  function renderNode(node, container, nodeId, parentNode) {
+    container.innerHTML = '';
+
+    const nodeDiv = document.createElement('div');
+    nodeDiv.className = 'tree-node';
+
+    // Header Div (collapsible arrow + inputs + buttons)
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'node-header';
+
+    // Collapsible arrow for children and spouses
+    const hasChildren = Object.keys(node.children || {}).length > 0;
+    const hasSpouses = Object.keys(node.spouses || {}).length > 0;
+
+    // Arrow to collapse children and spouses
+    const arrow = document.createElement('span');
+    arrow.className = 'arrow';
+    arrow.textContent = '▶';
+    let collapsed = false;
+
+    function updateArrow() {
+      arrow.textContent = collapsed ? '▶' : '▼';
+      if (collapsed) {
+        childrenContainer.style.display = 'none';
+        spousesContainer.style.display = 'none';
+      } else {
+        childrenContainer.style.display = 'block';
+        spousesContainer.style.display = 'block';
+      }
+    }
+
+    arrow.style.userSelect = 'none';
+    arrow.style.marginRight = '6px';
+
+    if (hasChildren || hasSpouses) {
+      arrow.style.visibility = 'visible';
+      arrow.style.cursor = 'pointer';
+      arrow.addEventListener('click', () => {
+        collapsed = !collapsed;
+        updateArrow();
+      });
+    } else {
+      arrow.style.visibility = 'hidden';
+    }
+
+    headerDiv.appendChild(arrow);
 
     // Name input
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
-    nameInput.value = nodeData.name;
-    nameInput.classList.add('name-input');
-    nameInput.title = 'Edit name';
-    nameInput.addEventListener('change', e => {
-      const newName = e.target.value.trim();
-      if (newName) {
-        db.ref(`familyTree/${nodeId}/name`).set(newName);
-      } else {
-        alert('Name cannot be empty.');
-        e.target.value = nodeData.name;
-      }
+    nameInput.value = node.name || '';
+    nameInput.placeholder = 'Name';
+    nameInput.className = 'name-input';
+    nameInput.addEventListener('input', () => {
+      node.name = nameInput.value;
+      saveFamilyTrees();
     });
+    headerDiv.appendChild(nameInput);
 
     // Birthday input
     const birthdayInput = document.createElement('input');
     birthdayInput.type = 'date';
-    birthdayInput.value = nodeData.birthday || '';
-    birthdayInput.classList.add('birthday-input');
-    birthdayInput.title = 'Edit birthday';
-    birthdayInput.addEventListener('change', e => {
-      const newDate = e.target.value;
-      if (newDate) {
-        db.ref(`familyTree/${nodeId}/birthday`).set(newDate);
-        checkBirthdaysToday();
+    birthdayInput.value = node.birthday || '';
+    birthdayInput.className = 'birthday-input';
+    birthdayInput.addEventListener('change', () => {
+      node.birthday = birthdayInput.value;
+      saveFamilyTrees();
+      showTodayBirthdays();
+    });
+    headerDiv.appendChild(birthdayInput);
+
+    // --- Died checkbox & date input ---
+    const diedCheckbox = document.createElement('input');
+    diedCheckbox.type = 'checkbox';
+    diedCheckbox.checked = !!node.died;
+    diedCheckbox.id = nodeId + '-died-checkbox';
+    headerDiv.appendChild(diedCheckbox);
+
+    const diedLabel = document.createElement('label');
+    diedLabel.htmlFor = diedCheckbox.id;
+    diedLabel.textContent = 'Died';
+    diedLabel.style.marginLeft = '6px';
+    headerDiv.appendChild(diedLabel);
+
+    const diedDateInput = document.createElement('input');
+    diedDateInput.type = 'date';
+    diedDateInput.value = node.diedDate || '';
+    diedDateInput.className = 'died-input';
+    diedDateInput.style.marginLeft = '10px';
+    diedDateInput.style.display = node.died ? 'inline-block' : 'none';
+    headerDiv.appendChild(diedDateInput);
+
+    diedCheckbox.addEventListener('change', () => {
+      node.died = diedCheckbox.checked;
+      if (!node.died) {
+        node.diedDate = '';
+        diedDateInput.value = '';
+        diedDateInput.style.display = 'none';
       } else {
-        alert('Invalid date.');
-        e.target.value = nodeData.birthday;
+        diedDateInput.style.display = 'inline-block';
       }
+      saveFamilyTrees();
+      showTodayBirthdays();
     });
 
-    // Buttons container
-    const btnsContainer = document.createElement('div');
-    btnsContainer.classList.add('node-buttons');
-
-    // Delete button
-    const deleteBtn = document.createElement('button');
-    deleteBtn.textContent = 'Delete';
-    deleteBtn.classList.add('delete-btn');
-    deleteBtn.title = 'Delete this member and all descendants';
-    deleteBtn.addEventListener('click', () => {
-      if (confirm(`Delete ${nodeData.name} and ALL their descendants?`)) {
-        deleteNodeAndDescendants(nodeId);
-      }
+    diedDateInput.addEventListener('change', () => {
+      node.diedDate = diedDateInput.value;
+      saveFamilyTrees();
+      showTodayBirthdays();
     });
-    btnsContainer.appendChild(deleteBtn);
 
-    // Add Child button
+    // Node buttons container
+    const buttonsDiv = document.createElement('div');
+    buttonsDiv.className = 'node-buttons';
+
+    // Add Child Button
     const addChildBtn = document.createElement('button');
-    addChildBtn.textContent = '+Child';
-    addChildBtn.classList.add('add-child-btn');
-    addChildBtn.title = 'Add child to this member';
-    btnsContainer.appendChild(addChildBtn);
+    addChildBtn.textContent = '+ Child';
+    addChildBtn.className = 'add-child-btn';
+    buttonsDiv.appendChild(addChildBtn);
 
-    // Add Spouse button
+    // Add Spouse Button
     const addSpouseBtn = document.createElement('button');
-    addSpouseBtn.textContent = '+Spouse';
-    addSpouseBtn.classList.add('add-spouse-btn');
-    addSpouseBtn.title = 'Add spouse to this member';
-    // Disable if already has spouse
-    if (hasSpouse(nodeId)) addSpouseBtn.disabled = true;
-    btnsContainer.appendChild(addSpouseBtn);
+    addSpouseBtn.textContent = '+ Spouse';
+    addSpouseBtn.className = 'add-spouse-btn';
+    buttonsDiv.appendChild(addSpouseBtn);
 
-    header.appendChild(arrow);
-    header.appendChild(nameInput);
-    header.appendChild(birthdayInput);
+    // Delete Button (only if not root)
+    if (parentNode) {
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.className = 'delete-btn';
+      buttonsDiv.appendChild(deleteBtn);
 
-    // Show spouse info next to name if exists
-    const spouseId = findSpouseId(nodeId);
-    let spouseContainer = null;
-    if (spouseId) {
-      const spouseData = nodesById[spouseId];
-      if (spouseData) {
-        spouseContainer = document.createElement('div');
-        spouseContainer.style.display = 'flex';
-        spouseContainer.style.alignItems = 'center';
-        spouseContainer.style.marginLeft = '12px';
-        spouseContainer.style.gap = '6px';
-
-        const spouseLabel = document.createElement('span');
-        spouseLabel.textContent = '💍 Spouse:';
-
-        const spouseNameInput = document.createElement('input');
-        spouseNameInput.type = 'text';
-        spouseNameInput.value = spouseData.name;
-        spouseNameInput.classList.add('name-input');
-        spouseNameInput.title = 'Edit spouse name';
-        spouseNameInput.style.width = '130px';
-        spouseNameInput.addEventListener('change', e => {
-          const val = e.target.value.trim();
-          if (val) {
-            db.ref(`familyTree/${spouseId}/name`).set(val);
-          } else {
-            alert('Name cannot be empty.');
-            e.target.value = spouseData.name;
+      deleteBtn.addEventListener('click', () => {
+        if (confirm(`Delete ${node.name}? This action cannot be undone.`)) {
+          // Remove from parent's children or spouses
+          if (parentNode.children && parentNode.children[nodeId]) {
+            delete parentNode.children[nodeId];
           }
-        });
-
-        const spouseBirthdayInput = document.createElement('input');
-        spouseBirthdayInput.type = 'date';
-        spouseBirthdayInput.value = spouseData.birthday || '';
-        spouseBirthdayInput.classList.add('birthday-input');
-        spouseBirthdayInput.title = 'Edit spouse birthday';
-        spouseBirthdayInput.style.width = '110px';
-        spouseBirthdayInput.addEventListener('change', e => {
-          const val = e.target.value;
-          if (val) {
-            db.ref(`familyTree/${spouseId}/birthday`).set(val);
-            checkBirthdaysToday();
-          } else {
-            alert('Invalid date.');
-            e.target.value = spouseData.birthday;
+          if (parentNode.spouses && parentNode.spouses[nodeId]) {
+            delete parentNode.spouses[nodeId];
           }
-        });
-
-        // Spouse delete button
-        const spouseDeleteBtn = document.createElement('button');
-        spouseDeleteBtn.textContent = 'Remove Spouse';
-        spouseDeleteBtn.classList.add('delete-btn');
-        spouseDeleteBtn.style.padding = '4px 8px';
-        spouseDeleteBtn.style.fontSize = '0.75rem';
-        spouseDeleteBtn.title = 'Remove spouse';
-        spouseDeleteBtn.addEventListener('click', () => {
-          if (confirm(`Remove spouse ${spouseData.name}? This will delete the spouse entry.`)) {
-            // Delete spouse node & clear spouseOf link
-            db.ref(`familyTree/${spouseId}`).remove().then(() => {
-              // Clear spouseOf in original node if needed
-              // Actually spouseOf is on spouse only, so no need here
-              loadFamilyTree();
-            });
-          }
-        });
-
-        spouseContainer.appendChild(spouseLabel);
-        spouseContainer.appendChild(spouseNameInput);
-        spouseContainer.appendChild(spouseBirthdayInput);
-        spouseContainer.appendChild(spouseDeleteBtn);
-
-        header.appendChild(spouseContainer);
-      }
-    }
-
-    header.appendChild(btnsContainer);
-    container.appendChild(header);
-    container.appendChild(childrenContainer);
-
-    // Add Child form (hidden)
-    const addChildForm = document.createElement('form');
-    addChildForm.classList.add('add-child-form');
-    addChildForm.style.display = 'none';
-
-    const childNameInput = document.createElement('input');
-    childNameInput.type = 'text';
-    childNameInput.placeholder = 'Child name';
-    childNameInput.required = true;
-
-    const childBirthdayInput = document.createElement('input');
-    childBirthdayInput.type = 'date';
-    childBirthdayInput.required = true;
-
-    const addChildSubmit = document.createElement('button');
-    addChildSubmit.type = 'submit';
-    addChildSubmit.textContent = 'Add';
-
-    addChildForm.appendChild(childNameInput);
-    addChildForm.appendChild(childBirthdayInput);
-    addChildForm.appendChild(addChildSubmit);
-
-    container.appendChild(addChildForm);
-
-    addChildBtn.addEventListener('click', () => {
-      addChildForm.style.display = addChildForm.style.display === 'none' ? 'flex' : 'none';
-      childNameInput.focus();
-    });
-
-    addChildForm.addEventListener('submit', e => {
-      e.preventDefault();
-      const childName = childNameInput.value.trim();
-      const childBirthday = childBirthdayInput.value;
-      if (!childName || !childBirthday) {
-        alert('Please enter child name and birthday.');
-        return;
-      }
-      const newChildRef = db.ref('familyTree').push();
-      newChildRef.set({
-        name: childName,
-        birthday: childBirthday,
-        parentId: nodeId
-      }).then(() => {
-        addChildForm.style.display = 'none';
-        childNameInput.value = '';
-        childBirthdayInput.value = '';
-        loadFamilyTree();
-        checkBirthdaysToday();
-      }).catch(err => alert('Error adding child: ' + err.message));
-    });
-
-    // Add Spouse form (hidden)
-    const addSpouseForm = document.createElement('form');
-    addSpouseForm.classList.add('add-spouse-form');
-    addSpouseForm.style.display = 'none';
-
-    const spouseNameInputForm = document.createElement('input');
-    spouseNameInputForm.type = 'text';
-    spouseNameInputForm.placeholder = 'Spouse name';
-    spouseNameInputForm.required = true;
-
-    const spouseBirthdayInputForm = document.createElement('input');
-    spouseBirthdayInputForm.type = 'date';
-    spouseBirthdayInputForm.required = true;
-
-    const addSpouseSubmit = document.createElement('button');
-    addSpouseSubmit.type = 'submit';
-    addSpouseSubmit.textContent = 'Add Spouse';
-
-    addSpouseForm.appendChild(spouseNameInputForm);
-    addSpouseForm.appendChild(spouseBirthdayInputForm);
-    addSpouseForm.appendChild(addSpouseSubmit);
-
-    container.appendChild(addSpouseForm);
-
-    addSpouseBtn.addEventListener('click', () => {
-      addSpouseForm.style.display = addSpouseForm.style.display === 'none' ? 'flex' : 'none';
-      spouseNameInputForm.focus();
-    });
-
-    addSpouseForm.addEventListener('submit', e => {
-      e.preventDefault();
-      const spouseName = spouseNameInputForm.value.trim();
-      const spouseBirthday = spouseBirthdayInputForm.value;
-      if (!spouseName || !spouseBirthday) {
-        alert('Please enter spouse name and birthday.');
-        return;
-      }
-      // Add spouse node with spouseOf = nodeId
-      const newSpouseRef = db.ref('familyTree').push();
-      newSpouseRef.set({
-        name: spouseName,
-        birthday: spouseBirthday,
-        parentId: null,
-        spouseOf: nodeId
-      }).then(() => {
-        addSpouseForm.style.display = 'none';
-        spouseNameInputForm.value = '';
-        spouseBirthdayInputForm.value = '';
-        loadFamilyTree();
-        checkBirthdaysToday();
-      }).catch(err => alert('Error adding spouse: ' + err.message));
-    });
-
-    // Load children nodes
-    const childrenIds = Object.keys(nodesById).filter(id => nodesById[id].parentId === nodeId);
-    if (childrenIds.length === 0) {
-      arrow.style.visibility = 'hidden';
-    } else {
-      childrenIds.forEach(childId => {
-        childrenContainer.appendChild(createTreeNode(childId));
+          saveFamilyTrees();
+          renderFamilyTrees();
+          showTodayBirthdays();
+        }
       });
     }
 
-    return container;
-  }
+    headerDiv.appendChild(buttonsDiv);
+    nodeDiv.appendChild(headerDiv);
 
-  // Helper: check if node has spouse
-  function hasSpouse(nodeId) {
-    return Object.values(nodesById).some(n => n.spouseOf === nodeId);
-  }
+    // Containers for children and spouses
+    const childrenContainer = document.createElement('div');
+    childrenContainer.style.marginLeft = '20px';
 
-  // Helper: find spouseId by nodeId
-  function findSpouseId(nodeId) {
-    for (const [id, node] of Object.entries(nodesById)) {
-      if (node.spouseOf === nodeId) return id;
+    // Render children
+    for (const childId in node.children || {}) {
+      const childNode = node.children[childId];
+      const childDiv = document.createElement('div');
+      renderNode(childNode, childDiv, childId, node);
+      childrenContainer.appendChild(childDiv);
     }
-    return null;
-  }
 
-  // Delete node and descendants recursively
-  function deleteNodeAndDescendants(nodeId) {
-    // Find children
-    const childrenIds = Object.keys(nodesById).filter(id => nodesById[id].parentId === nodeId);
-    // Delete descendants recursively
-    const promises = childrenIds.map(childId => deleteNodeAndDescendants(childId));
-    // Also delete spouse if any
-    const spouseId = findSpouseId(nodeId);
-    if (spouseId) {
-      promises.push(db.ref(`familyTree/${spouseId}`).remove());
+    nodeDiv.appendChild(childrenContainer);
+
+    // Container for spouses
+    const spousesContainer = document.createElement('div');
+    spousesContainer.style.marginLeft = '20px';
+    spousesContainer.style.marginTop = '8px';
+
+    for (const spouseId in node.spouses || {}) {
+      const spouseNode = node.spouses[spouseId];
+      const spouseDiv = document.createElement('div');
+      renderNode(spouseNode, spouseDiv, spouseId, node);
+      spousesContainer.appendChild(spouseDiv);
     }
-    // Delete current node after children
-    promises.push(db.ref(`familyTree/${nodeId}`).remove());
-    Promise.all(promises).then(() => {
-      loadFamilyTree();
-      checkBirthdaysToday();
-    });
-  }
 
-  // Birthday notifications for today
-  function checkBirthdaysToday() {
-    const today = new Date();
-    const todayMonthDay = `${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    const birthdayPeople = [];
+    nodeDiv.appendChild(spousesContainer);
 
-    for (const node of Object.values(nodesById)) {
-      if (node.birthday) {
-        const bDate = new Date(node.birthday);
-        if (!isNaN(bDate)) {
-          const bMonthDay = `${String(bDate.getMonth() + 1).padStart(2, '0')}-${String(bDate.getDate()).padStart(2, '0')}`;
-          if (bMonthDay === todayMonthDay) {
-            birthdayPeople.push(node.name);
-          }
-        }
+    container.appendChild(nodeDiv);
+
+    // Update arrow based on current collapsed state
+    updateArrow();
+
+    // Add Child Form (hidden by default)
+    let addChildForm;
+    addChildBtn.addEventListener('click', () => {
+      if (addChildForm) {
+        addChildForm.remove();
+        addChildForm = null;
+        return;
       }
-    }
+      addChildForm = document.createElement('form');
+      addChildForm.className = 'add-child-form';
 
-    if (birthdayPeople.length > 0) {
-      birthdayNotifications.textContent = `🎉 Birthday today: ${birthdayPeople.join(', ')}`;
-    } else {
-      birthdayNotifications.textContent = '';
-    }
+      const childNameInput = document.createElement('input');
+      childNameInput.type = 'text';
+      childNameInput.placeholder = 'Child Name';
+      childNameInput.required = true;
+
+      const childBirthdayInput = document.createElement('input');
+      childBirthdayInput.type = 'date';
+      childBirthdayInput.required = true;
+
+      // Died checkbox and died date for new child
+      const childDiedCheckbox = document.createElement('input');
+      childDiedCheckbox.type = 'checkbox';
+      childDiedCheckbox.id = nodeId + '-addchild-died-checkbox';
+
+      const childDiedLabel = document.createElement('label');
+      childDiedLabel.htmlFor = childDiedCheckbox.id;
+      childDiedLabel.textContent = 'Died';
+      childDiedLabel.style.marginLeft = '6px';
+
+      const childDiedDateInput = document.createElement('input');
+      childDiedDateInput.type = 'date';
+      childDiedDateInput.style.display = 'none';
+      childDiedDateInput.style.marginLeft = '10px';
+
+      childDiedCheckbox.addEventListener('change', () => {
+        childDiedDateInput.style.display = childDiedCheckbox.checked ? 'inline-block' : 'none';
+      });
+
+      const addChildSubmitBtn = document.createElement('button');
+      addChildSubmitBtn.type = 'submit';
+      addChildSubmitBtn.textContent = 'Add';
+
+      addChildForm.appendChild(childNameInput);
+      addChildForm.appendChild(childBirthdayInput);
+      addChildForm.appendChild(childDiedCheckbox);
+      addChildForm.appendChild(childDiedLabel);
+      addChildForm.appendChild(childDiedDateInput);
+      addChildForm.appendChild(addChildSubmitBtn);
+
+      addChildForm.addEventListener('submit', e => {
+        e.preventDefault();
+        const name = childNameInput.value.trim();
+        const birthday = childBirthdayInput.value;
+        const died = childDiedCheckbox.checked;
+        const diedDate = childDiedDateInput.value;
+
+        if (!name || !birthday) {
+          alert('Please enter name and birthday for the child.');
+          return;
+        }
+
+        if (died && !diedDate) {
+          alert('Please enter date of death.');
+          return;
+        }
+
+        const newChildId = Date.now().toString();
+        if (!node.children) node.children = {};
+        node.children[newChildId] = {
+          id: newChildId,
+          name,
+          birthday,
+          died: died ? true : false,
+          diedDate: died ? diedDate : '',
+          children: {},
+          spouses: {}
+        };
+        saveFamilyTrees();
+        renderFamilyTrees();
+        showTodayBirthdays();
+      });
+
+      container.appendChild(addChildForm);
+    });
+
+    // Add Spouse Form (hidden by default)
+    let addSpouseForm;
+    addSpouseBtn.addEventListener('click', () => {
+      if (addSpouseForm) {
+        addSpouseForm.remove();
+        addSpouseForm = null;
+        return;
+      }
+      addSpouseForm = document.createElement('form');
+      addSpouseForm.className = 'add-spouse-form';
+
+      const spouseNameInput = document.createElement('input');
+      spouseNameInput.type = 'text';
+      spouseNameInput.placeholder = 'Spouse Name';
+      spouseNameInput.required = true;
+
+      const spouseBirthdayInput = document.createElement('input');
+      spouseBirthdayInput.type = 'date';
+      spouseBirthdayInput.required = true;
+
+      // Died checkbox and died date for new spouse
+      const spouseDiedCheckbox = document.createElement('input');
+      spouseDiedCheckbox.type = 'checkbox';
+      spouseDiedCheckbox.id = nodeId + '-addspouse-died-checkbox';
+
+      const spouseDiedLabel = document.createElement('label');
+      spouseDiedLabel.htmlFor = spouseDiedCheckbox.id;
+      spouseDiedLabel.textContent = 'Died';
+      spouseDiedLabel.style.marginLeft = '6px';
+
+      const spouseDiedDateInput = document.createElement('input');
+      spouseDiedDateInput.type = 'date';
+      spouseDiedDateInput.style.display = 'none';
+      spouseDiedDateInput.style.marginLeft = '10px';
+
+      spouseDiedCheckbox.addEventListener('change', () => {
+        spouseDiedDateInput.style.display = spouseDiedCheckbox.checked ? 'inline-block' : 'none';
+      });
+
+      const addSpouseSubmitBtn = document.createElement('button');
+      addSpouseSubmitBtn.type = 'submit';
+      addSpouseSubmitBtn.textContent = 'Add';
+
+      addSpouseForm.appendChild(spouseNameInput);
+      addSpouseForm.appendChild(spouseBirthdayInput);
+      addSpouseForm.appendChild(spouseDiedCheckbox);
+      addSpouseForm.appendChild(spouseDiedLabel);
+      addSpouseForm.appendChild(spouseDiedDateInput);
+      addSpouseForm.appendChild(addSpouseSubmitBtn);
+
+      addSpouseForm.addEventListener('submit', e => {
+        e.preventDefault();
+        const name = spouseNameInput.value.trim();
+        const birthday = spouseBirthdayInput.value;
+        const died = spouseDiedCheckbox.checked;
+        const diedDate = spouseDiedDateInput.value;
+
+        if (!name || !birthday) {
+          alert('Please enter name and birthday for the spouse.');
+          return;
+        }
+
+        if (died && !diedDate) {
+          alert('Please enter date of death.');
+          return;
+        }
+
+        const newSpouseId = Date.now().toString();
+        if (!node.spouses) node.spouses = {};
+        node.spouses[newSpouseId] = {
+          id: newSpouseId,
+          name,
+          birthday,
+          died: died ? true : false,
+          diedDate: died ? diedDate : '',
+          children: {},
+          spouses: {}
+        };
+        saveFamilyTrees();
+        renderFamilyTrees();
+        showTodayBirthdays();
+      });
+
+      container.appendChild(addSpouseForm);
+    });
   }
 
 </script>
