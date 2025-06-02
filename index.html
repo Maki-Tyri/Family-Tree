@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Family Tree with Firebase</title>
+  <title>Family Tree</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- React & ReactDOM -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -224,7 +224,7 @@
           name: "New Child",
           spouses: [],
           birthday: "",
-          deathday: "",
+          deathday: "Alive",
           children: [],
         };
         const newChildren = node.children ? [...node.children, newChild] : [newChild];
@@ -257,9 +257,9 @@
         }
         const newSpouse = {
           id: ++nextId,
-          name: "New Spouse",
+          name: "Spouse Maiden Name",
           birthday: "",
-          deathday: "",
+          deathday: "Alive",
         };
         updateNode({ ...node, spouses: [...(node.spouses || []), newSpouse] });
       }
